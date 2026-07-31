@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard de usuarios</title>
+  <style>
+    body { font-family: sans-serif; margin: 40px; }
+    table { border-collapse: collapse; width: 100%; max-width: 700px; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+    th { background: #f4f4f4; }
+    button { padding: 6px 14px; cursor: pointer; }
+    #userForm, #paymentForm { display: flex; gap: 8px; margin-bottom: 6px; align-items: center; }
+    #userForm input, #paymentForm input, #paymentForm select { padding: 6px; }
+    #formMsg, #paymentMsg { font-size: 0.9em; min-height: 1.2em; }
+    #cancelEditBtn { background: #eee; }
+    .actions button { margin-right: 6px; }
+    hr { margin: 30px 0; border: none; border-top: 1px solid #ddd; }
+    .status-completado { color: green; font-weight: bold; }
+    .status-rechazado { color: crimson; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h2>Dashboard de usuarios</h2>
+    <button id="logoutBtn" style="height:32px;">Cerrar sesión</button>
+  </div>
+
+  <h3 id="formTitle">Crear nuevo usuario</h3>
+  <form id="userForm">
+    <input type="text" id="name" placeholder="Nombre" required />
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="password" id="password" placeholder="Contraseña" />
+    <button type="submit" id="submitBtn">Crear usuario</button>
+    <button type="button" id="cancelEditBtn" style="display:none;">Cancelar</button>
+  </form>
+  <p id="formMsg"></p>
+
+  <h3>Usuarios registrados</h3>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Nombre</th><th>Email</th><th>Creado</th><th></th></tr>
+    </thead>
+    <tbody id="userRows"></tbody>
+  </table>
+
+  <hr>
+
+  <h3>Registrar pago</h3>
+  <form id="paymentForm">
+    <select id="paymentUser" required></select>
+    <input type="number" id="paymentAmount" placeholder="Monto" step="0.01" min="0.01" required />
+    <button type="submit">Registrar pago</button>
+  </form>
+  <p id="paymentMsg"></p>
+
+  <h3>Historial de pagos</h3>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Usuario</th><th>Monto</th><th>Estado</th><th>Fecha</th></tr>
+    </thead>
+    <tbody id="paymentRows"></tbody>
+  </table>
+
+  <script>
+    let editingId = null; 
+    let usersCache = [];
+
+    async function loadUsers() {
+      const res = await fetch('/api/users');
+      if (res.status === 401) {
+        window.location.href = '/login.html';
+        return;
+      }
+      usersCache = await res.json();
+
+      const tbody = document.getElementById('userRows');
+      tbody.innerHTML = usersCache.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.name}</td>
+          <td>${u.email}</td>
+          <td>${u.createdAt}</td>
+          <td class="actions">
+            <button onclick='startEdit(${JSON.stringify(u)})'>Editar</button>
+            <button onclick="deleteUser(${u.id})">Eliminar</button>
+          </td>
+        </tr>
+      `).join('');
+
+      const select = document.getElementById('paymentUser');
+      const previousValue = select.value;
+      select.innerHTML = usersCache.map(u => `<option value="${u.id}">${u.name} (#${u.id})</option>`).join('');
+      if (previousValue) select.value = previousValue;
+
+      loadAllPayments();
+    }
+
+    async function loadAllPayments() {
+      const tbody = document.getElementById('paymentRows');
+      if (usersCache.length === 0) {
+        tbody.innerHTML = '';
+        return;
+      }
+      const results = await Promise.all(
+        usersCache.map(u => fetch('/api/payments/user/' + u.id).then(r => r.ok ? r.json() : []))
+      );
+      const rows = results.flat().sort((a, b) => b.id - a.id);
+      const userNameById = Object.fromEntries(usersCache.map(u => [u.id, u.name]));
+
+      tbody.innerHTML = rows.map(p => `
+        <tr>
+          <td>${p.id}</td>
+          <td>${userNameById[p.userId] || 'Usuario #' + p.userId}</td>
+          <td>$${Number(p.amount).toFixed(2)}</td>
+          <td class="status-${p.status}">${p.status}</td>
+          <td>${p.createdAt}</td>
+        </tr>
+      `).join('');
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/users/logout', { method: 'POST' });
+      window.location.href = '/login.html';
+    });
+
+    async function deleteUser(id) {
+      if (editingId === id) exitEditMode();
+      await fetch('/api/users/' + id, { method: 'DELETE' });
+      loadUsers();
+    }
+
+    function startEdit(user) {
+      editingId = user.id;
+      document.getElementById('name').value = user.name;
+      document.getElementById('email').value = user.email;
+      document.getElementById('password').value = '';
+      document.getElementById('password').placeholder = 'Nueva contraseña';
+      document.getElementById('formTitle').textContent = 'Editando usuario #' + user.id;
+      document.getElementById('submitBtn').textContent = 'Actualizar usuario';
+      document.getElementById('cancelEditBtn').style.display = 'inline-block';
+      document.getElementById('formMsg').textContent = '';
+      window.scrollTo(0, 0);
+    }
+
+    function exitEditMode() {
+      editingId = null;
+      document.getElementById('userForm').reset();
+      document.getElementById('password').placeholder = 'Contraseña';
+      document.getElementById('formTitle').textContent = 'Crear nuevo usuario';
+      document.getElementById('submitBtn').textContent = 'Crear usuario';
+      document.getElementById('cancelEditBtn').style.display = 'none';
+    }
+
+    document.getElementById('cancelEditBtn').addEventListener('click', exitEditMode);
+
+    document.getElementById('userForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('formMsg');
+
+      const isEditing = editingId !== null;
+      const url = isEditing ? '/api/users/' + editingId : '/api/users';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        msg.style.color = 'green';
+        msg.textContent = isEditing ? 'Usuario actualizado' : 'Usuario creado: ' + data.name;
+        exitEditMode();
+        loadUsers();
+      } else {
+        msg.style.color = 'crimson';
+        msg.textContent = (data.errors || [data.error]).join(' ');
+      }
+    });
+
+    document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const userId = Number(document.getElementById('paymentUser').value);
+      const amount = Number(document.getElementById('paymentAmount').value);
+      const msg = document.getElementById('paymentMsg');
+
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, amount })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        msg.style.color = 'green';
+        msg.textContent = 'Pago registrado (' + data.status + ', ' + data.transactionId + ')';
+        document.getElementById('paymentAmount').value = '';
+        loadAllPayments();
+      } else {
+        msg.style.color = 'crimson';
+        msg.textContent = data.error || 'No se pudo registrar el pago';
+      }
+    });
+
+    loadUsers();
+  </script>
+</body>
+</html>

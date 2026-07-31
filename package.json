@@ -1,0 +1,13 @@
+{
+  "name": "crud-project",
+  "version": "1.0.0",
+  "description": "Proyecto CRUD - Tarea 3 Git y Git Flow",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.19.0"
+  }
+}

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Iniciar sesión</title>
+  <style>
+    body { font-family: sans-serif; display: flex; justify-content: center; margin-top: 80px; }
+    .card { border: 1px solid #ddd; padding: 24px; border-radius: 8px; width: 280px; }
+    input { width: 100%; margin-bottom: 12px; padding: 8px; box-sizing: border-box; }
+    button { width: 100%; padding: 8px; cursor: pointer; }
+    #msg { font-size: 0.9em; min-height: 1.2em; }
+    .toggle { text-align: center; margin-top: 14px; font-size: 0.85em; }
+    .toggle a { color: #2563eb; cursor: pointer; text-decoration: underline; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 id="cardTitle">Iniciar sesión</h2>
+
+    <form id="loginForm">
+      <input type="email" id="loginEmail" placeholder="Email" required />
+      <input type="password" id="loginPassword" placeholder="Contraseña" required />
+      <button type="submit">Entrar</button>
+    </form>
+
+    <form id="registerForm" class="hidden">
+      <input type="text" id="regName" placeholder="Nombre" required />
+      <input type="email" id="regEmail" placeholder="Email" required />
+      <input type="password" id="regPassword" placeholder="Contraseña (mín. 6 caracteres)" required />
+      <button type="submit">Crear cuenta</button>
+    </form>
+
+    <p id="msg"></p>
+
+    <div class="toggle">
+      <span id="toRegister">¿No tienes cuenta? <a>Créala aquí</a></span>
+      <span id="toLogin" class="hidden">¿Ya tienes cuenta? <a>Inicia sesión</a></span>
+    </div>
+  </div>
+
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const cardTitle = document.getElementById('cardTitle');
+    const msg = document.getElementById('msg');
+    const toRegister = document.getElementById('toRegister');
+    const toLogin = document.getElementById('toLogin');
+
+    toRegister.querySelector('a').addEventListener('click', () => {
+      loginForm.classList.add('hidden');
+      registerForm.classList.remove('hidden');
+      toRegister.classList.add('hidden');
+      toLogin.classList.remove('hidden');
+      cardTitle.textContent = 'Crear cuenta';
+      msg.textContent = '';
+    });
+
+    toLogin.querySelector('a').addEventListener('click', () => {
+      registerForm.classList.add('hidden');
+      loginForm.classList.remove('hidden');
+      toLogin.classList.add('hidden');
+      toRegister.classList.remove('hidden');
+      cardTitle.textContent = 'Iniciar sesión';
+      msg.textContent = '';
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+
+      const res = await fetch('/api/users/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        msg.style.color = 'green';
+        msg.textContent = 'Bienvenido, ' + data.name;
+        window.location.href = '/dashboard.html';
+      } else {
+        msg.style.color = 'crimson';
+        msg.textContent = data.error;
+      }
+    });
+
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('regName').value;
+      const email = document.getElementById('regEmail').value;
+      const password = document.getElementById('regPassword').value;
+
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+
+        const loginRes = await fetch('/api/users/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        if (loginRes.ok) {
+          window.location.href = '/dashboard.html';
+        } else {
+          msg.style.color = 'green';
+          msg.textContent = 'Cuenta creada. Ahora inicia sesión.';
+          toLogin.querySelector('a').click();
+        }
+      } else {
+        msg.style.color = 'crimson';
+        msg.textContent = (data.errors || [data.error]).join(' ');
+      }
+    });
+  </script>
+</body>
+</html>

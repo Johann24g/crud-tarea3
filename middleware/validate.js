@@ -25,3 +25,5 @@ function validateUserInput(req, res, next) {
 }
 
 module.exports = { validateUserInput };
+
+// Valida nombre, email y contraseña antes de crear/actualizar usuarios

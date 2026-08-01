@@ -17,3 +17,5 @@ function formatDate(isoString) {
 }
 
 module.exports = { formatDate };
+
+// Corrige formato de fecha ilegible (ISO -> DD/MM/YYYY HH:mm)

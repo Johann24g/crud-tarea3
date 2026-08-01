@@ -42,3 +42,5 @@ router.get('/user/:userId', (req, res) => {
 });
 
 module.exports = router;
+
+// Endpoint de pagos integrado con el dashboard
